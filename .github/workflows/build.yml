@@ -1,0 +1,186 @@
+name: Build SwiftFiles
+
+# Github -> Actions tab -> "Build SwiftFiles" -> Run workflow.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Project folder dhoondo (pubspec.yaml kahan hai)
+        id: find
+        shell: bash
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/logs" "$GITHUB_WORKSPACE/out"
+          # Agar repo mein zip file upload ki gayi hai to use khud extract kar lo
+          PY=$(command -v python3 || command -v python)
+          for z in ./*.zip; do
+            if [ -f "$z" ]; then "$PY" -m zipfile -e "$z" ./unpacked; fi
+          done
+          P=$(find . -name pubspec.yaml -not -path '*/build/*' -not -path '*/.dart_tool/*' | head -1)
+          if [ -z "$P" ]; then
+            echo "::error::pubspec.yaml repo mein nahi mili. Zip ki saari files upload karein."
+            echo "pubspec.yaml nahi mili" > "$GITHUB_WORKSPACE/logs/android.log"
+            exit 1
+          fi
+          echo "dir=$(dirname "$P")" >> "$GITHUB_OUTPUT"
+          echo "Project folder: $(dirname "$P")" | tee "$GITHUB_WORKSPACE/logs/android.log"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Android/Windows folders banao
+        working-directory: ${{ steps.find.outputs.dir }}
+        shell: bash
+        run: |
+          L="$GITHUB_WORKSPACE/logs/android.log"
+          KEEP="$RUNNER_TEMP/keep"
+          rm -rf "$KEEP" && mkdir -p "$KEEP"
+          cp -r lib pubspec.yaml "$KEEP/"
+          [ -d android_patch ] && cp -r android_patch "$KEEP/"
+          rm -rf android windows
+          flutter --version 2>&1 | tee -a "$L"
+          flutter create --org com.swiftfiles --project-name swift_files --platforms=android,windows . 2>&1 | tee -a "$L"
+          rm -rf lib test
+          cp -r "$KEEP/lib" . && cp "$KEEP/pubspec.yaml" .
+          [ -d "$KEEP/android_patch" ] && cp -r "$KEEP/android_patch" . || true
+
+      - name: Android permissions + storage patch
+        working-directory: ${{ steps.find.outputs.dir }}
+        shell: bash
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's|<application|<uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>\n    <application android:requestLegacyExternalStorage="true"|' "$M"
+          find android/app/src/main -name 'MainActivity.*' -delete
+          D=android/app/src/main/kotlin/com/swiftfiles/swift_files
+          mkdir -p "$D" && cp android_patch/MainActivity.kt "$D/MainActivity.kt"
+
+      - name: Packages
+        working-directory: ${{ steps.find.outputs.dir }}
+        shell: bash
+        run: flutter pub get 2>&1 | tee -a "$GITHUB_WORKSPACE/logs/android.log"
+
+      - name: Code check (asli errors yahan dikhte hain)
+        working-directory: ${{ steps.find.outputs.dir }}
+        continue-on-error: true
+        shell: bash
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings 2>&1 | tee -a "$GITHUB_WORKSPACE/logs/android.log"
+
+      - name: APK build
+        working-directory: ${{ steps.find.outputs.dir }}
+        shell: bash
+        run: |
+          flutter build apk --release 2>&1 | tee -a "$GITHUB_WORKSPACE/logs/android.log"
+          cp build/app/outputs/flutter-apk/app-release.apk "$GITHUB_WORKSPACE/out/SwiftFiles.apk"
+
+      - name: Log ko Summary page par dikhao
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### Build log (aakhri 150 lines) - yahan se text copy kar sakte hain"
+            echo '```'
+            tail -n 150 "$GITHUB_WORKSPACE/logs/android.log" 2>/dev/null || echo "log nahi bana"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Build-Log-Android
+          path: logs/android.log
+          if-no-files-found: ignore
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SwiftFiles-Android-APK
+          path: out/SwiftFiles.apk
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Project folder dhoondo (pubspec.yaml kahan hai)
+        id: find
+        shell: bash
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/logs" "$GITHUB_WORKSPACE/out"
+          # Agar repo mein zip file upload ki gayi hai to use khud extract kar lo
+          PY=$(command -v python3 || command -v python)
+          for z in ./*.zip; do
+            if [ -f "$z" ]; then "$PY" -m zipfile -e "$z" ./unpacked; fi
+          done
+          P=$(find . -name pubspec.yaml -not -path '*/build/*' -not -path '*/.dart_tool/*' | head -1)
+          if [ -z "$P" ]; then
+            echo "::error::pubspec.yaml repo mein nahi mili. Zip ki saari files upload karein."
+            echo "pubspec.yaml nahi mili" > "$GITHUB_WORKSPACE/logs/windows.log"
+            exit 1
+          fi
+          echo "dir=$(dirname "$P")" >> "$GITHUB_OUTPUT"
+          echo "Project folder: $(dirname "$P")" | tee "$GITHUB_WORKSPACE/logs/windows.log"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Windows folders banao
+        working-directory: ${{ steps.find.outputs.dir }}
+        shell: bash
+        run: |
+          L="$GITHUB_WORKSPACE/logs/windows.log"
+          KEEP="$RUNNER_TEMP/keep"
+          rm -rf "$KEEP" && mkdir -p "$KEEP"
+          cp -r lib pubspec.yaml "$KEEP/"
+          rm -rf android windows
+          flutter create --org com.swiftfiles --project-name swift_files --platforms=android,windows . 2>&1 | tee -a "$L"
+          rm -rf lib test
+          cp -r "$KEEP/lib" . && cp "$KEEP/pubspec.yaml" .
+
+      - name: Packages
+        working-directory: ${{ steps.find.outputs.dir }}
+        shell: bash
+        run: flutter pub get 2>&1 | tee -a "$GITHUB_WORKSPACE/logs/windows.log"
+
+      - name: Windows build
+        working-directory: ${{ steps.find.outputs.dir }}
+        shell: bash
+        run: |
+          flutter build windows --release 2>&1 | tee -a "$GITHUB_WORKSPACE/logs/windows.log"
+          cp -r build/windows/x64/runner/Release/. "$GITHUB_WORKSPACE/out/"
+
+      - name: Log ko Summary page par dikhao
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### Windows build log (aakhri 150 lines)"
+            echo '```'
+            tail -n 150 "$GITHUB_WORKSPACE/logs/windows.log" 2>/dev/null || echo "log nahi bana"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Build-Log-Windows
+          path: logs/windows.log
+          if-no-files-found: ignore
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SwiftFiles-Windows
+          path: out/

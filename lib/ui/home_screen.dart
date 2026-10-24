@@ -359,8 +359,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     return PopScope(
       canPop: canExit,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _n.back();
+     onPopInvoked: (didPop) {
+  if (!didPop) _n.back();
+},
       },
       child: CallbackShortcuts(
         bindings: {

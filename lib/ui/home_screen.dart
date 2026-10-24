@@ -359,7 +359,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     return PopScope(
       canPop: canExit,
-      onPopInvokedWithResult: (didPop, _) {
+      onPopInvoked: (didPop) {
         if (!didPop) _n.back();
       },
       child: CallbackShortcuts(
@@ -674,11 +674,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ),
           act(Icons.select_all_rounded, 'Sab select (Ctrl+A)', _n.selectAll),
           act(
-            Icons.drive_file_rename_outline_rounded,
+            Icons.edit_rounded,
             one ? 'Rename (F2)' : 'Batch rename',
             _renameSelected,
           ),
-          act(Icons.drive_file_move_outline_rounded, 'Move', _n.startMove),
+          act(Icons.drive_file_move_rounded, 'Move', _n.startMove),
           act(
             Icons.delete_outline_rounded,
             'Delete',
@@ -782,7 +782,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     final list = st.items;
     final side = wide ? 24.0 : 12.0;
-    // Mobile par Home folder ke sab se upar storage indicator (PC par sidebar mein hota hai)
     final showStorage = !wide && !st.isFiltering && st.path == _fs.root.path;
 
     return Column(

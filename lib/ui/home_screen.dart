@@ -679,12 +679,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             one ? 'Rename (F2)' : 'Batch rename',
             _renameSelected,
           ),
-          act(Icons.drive_file_move_outline_rounded, 'Move', _n.startMove),
-          act(
-            Icons.delete_outline_rounded,
-            'Delete',
-            () => _trash(_selectedItems),
-          ),
+        act(Icons.folder_rounded, 'Move', _n.startMove),
+       act(Icons.delete_outline_rounded, 'Delete', () => _trash(_selectedItems)),
         ],
       ),
     );

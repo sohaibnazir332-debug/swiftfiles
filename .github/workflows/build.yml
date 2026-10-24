@@ -17,7 +17,7 @@ jobs:
         run: |
           P=$(find . -name pubspec.yaml -not -path "*/build/*" -not -path "*/.dart_tool/*" -not -path "*/.git/*" | head -n 1)
           if [ -z "$P" ]; then
-            echo "::error::pubspec.yaml repo mein nahi mili. Zip ke andar ki saari files upload karein, zip file nahi."
+            echo "::error::pubspec.yaml repo mein nahi mili."
             exit 1
           fi
           echo "dir=$(dirname "$P")" >> $GITHUB_OUTPUT
@@ -34,6 +34,14 @@ jobs:
           flutter-version: '3.22.2'
           channel: 'stable'
           cache: true
+
+      - name: Fix Android & Gradle project
+        working-directory: ${{ steps.find.outputs.dir }}
+        run: |
+          if [ ! -d "android" ]; then
+            echo "Creating missing android folder..."
+            flutter create . --platforms=android --org com.swiftfiles.app
+          fi
 
       - name: Install dependencies
         working-directory: ${{ steps.find.outputs.dir }}

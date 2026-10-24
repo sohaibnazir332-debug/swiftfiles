@@ -1,0 +1,130 @@
+name: Build SwiftFiles
+
+# Github -> Actions tab -> "Build SwiftFiles" -> Run workflow.
+# 5-10 minute baad run ke neeche "Artifacts" mein APK (Android) aur ZIP (Windows) milenge.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Project folder dhoondo (pubspec.yaml kahan hai)
+        id: find
+        shell: bash
+        run: |
+          P=$(find . -name pubspec.yaml -not -path '*/build/*' -not -path '*/.dart_tool/*' | head -1)
+          if [ -z "$P" ]; then
+            echo "::error::pubspec.yaml repo mein nahi mili. Zip ke andar ki saari files upload karein."
+            exit 1
+          fi
+          echo "dir=$(dirname "$P")" >> "$GITHUB_OUTPUT"
+          echo "Project folder: $(dirname "$P")"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Android/Windows folders banao
+        working-directory: ${{ steps.find.outputs.dir }}
+        shell: bash
+        run: |
+          KEEP="$RUNNER_TEMP/keep"
+          rm -rf "$KEEP" && mkdir -p "$KEEP"
+          cp -r lib pubspec.yaml "$KEEP/"
+          [ -d android_patch ] && cp -r android_patch "$KEEP/"
+          flutter create --org com.swiftfiles --project-name swift_files --platforms=android,windows .
+          rm -rf lib test
+          cp -r "$KEEP/lib" . && cp "$KEEP/pubspec.yaml" .
+          [ -d "$KEEP/android_patch" ] && cp -r "$KEEP/android_patch" . || true
+
+      - name: Android permissions + storage patch
+        working-directory: ${{ steps.find.outputs.dir }}
+        shell: bash
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's|<application|<uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>\n    <application android:requestLegacyExternalStorage="true"|' "$M"
+          find android/app/src/main -name 'MainActivity.*' -delete
+          D=android/app/src/main/kotlin/com/swiftfiles/swift_files
+          mkdir -p "$D" && cp android_patch/MainActivity.kt "$D/MainActivity.kt"
+
+      - name: Packages
+        working-directory: ${{ steps.find.outputs.dir }}
+        run: flutter pub get
+
+      - name: Code check (asli errors yahan dikhte hain)
+        working-directory: ${{ steps.find.outputs.dir }}
+        continue-on-error: true
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: APK build
+        working-directory: ${{ steps.find.outputs.dir }}
+        shell: bash
+        run: |
+          flutter build apk --release
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cp build/app/outputs/flutter-apk/app-release.apk "$GITHUB_WORKSPACE/out/SwiftFiles.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SwiftFiles-Android-APK
+          path: out/SwiftFiles.apk
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Project folder dhoondo (pubspec.yaml kahan hai)
+        id: find
+        shell: bash
+        run: |
+          P=$(find . -name pubspec.yaml -not -path '*/build/*' -not -path '*/.dart_tool/*' | head -1)
+          if [ -z "$P" ]; then
+            echo "::error::pubspec.yaml repo mein nahi mili. Zip ke andar ki saari files upload karein."
+            exit 1
+          fi
+          echo "dir=$(dirname "$P")" >> "$GITHUB_OUTPUT"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Windows folders banao
+        working-directory: ${{ steps.find.outputs.dir }}
+        shell: bash
+        run: |
+          KEEP="$RUNNER_TEMP/keep"
+          rm -rf "$KEEP" && mkdir -p "$KEEP"
+          cp -r lib pubspec.yaml "$KEEP/"
+          flutter create --org com.swiftfiles --project-name swift_files --platforms=android,windows .
+          rm -rf lib test
+          cp -r "$KEEP/lib" . && cp "$KEEP/pubspec.yaml" .
+
+      - name: Packages
+        working-directory: ${{ steps.find.outputs.dir }}
+        run: flutter pub get
+
+      - name: Windows build
+        working-directory: ${{ steps.find.outputs.dir }}
+        shell: bash
+        run: |
+          flutter build windows --release
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cp -r build/windows/x64/runner/Release/. "$GITHUB_WORKSPACE/out/"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SwiftFiles-Windows
+          path: out/

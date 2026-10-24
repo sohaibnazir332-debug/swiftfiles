@@ -1,6 +1,9 @@
 name: Build SwiftFiles
 
 # Github -> Actions tab -> "Build SwiftFiles" -> Run workflow.
+# Run poora hone par:
+#   - run ke upar "Summary" page par build log ka text (copy ho sakta hai) dikhta hai
+#   - neeche "Artifacts" mein APK / Windows ZIP aur "Build-Log" (txt file) milti hai
 on:
   workflow_dispatch:
   push:
@@ -50,6 +53,7 @@ jobs:
           rm -rf "$KEEP" && mkdir -p "$KEEP"
           cp -r lib pubspec.yaml "$KEEP/"
           [ -d android_patch ] && cp -r android_patch "$KEEP/"
+          # purane/adhoore android-windows folders hata do, Flutter naye theek folders banaye
           rm -rf android windows
           flutter --version 2>&1 | tee -a "$L"
           flutter create --org com.swiftfiles --project-name swift_files --platforms=android,windows . 2>&1 | tee -a "$L"
@@ -159,6 +163,8 @@ jobs:
         working-directory: ${{ steps.find.outputs.dir }}
         shell: bash
         run: |
+          # Naye Visual Studio mein permission_handler_windows plugin ki purani coroutine error ko chup karao
+          export CL="/D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS"
           flutter build windows --release 2>&1 | tee -a "$GITHUB_WORKSPACE/logs/windows.log"
           cp -r build/windows/x64/runner/Release/. "$GITHUB_WORKSPACE/out/"
 

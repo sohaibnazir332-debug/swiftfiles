@@ -35,14 +35,6 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Fix Android & Gradle project
-        working-directory: ${{ steps.find.outputs.dir }}
-        run: |
-          if [ ! -d "android" ]; then
-            echo "Creating missing android folder..."
-            flutter create . --platforms=android --org com.swiftfiles.app
-          fi
-
       - name: Install dependencies
         working-directory: ${{ steps.find.outputs.dir }}
         run: flutter pub get

@@ -164,7 +164,7 @@ jobs:
         shell: bash
         run: |
           # Naye Visual Studio mein permission_handler_windows plugin ki purani coroutine error ko chup karao
-          export CL="/D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS"
+          export CL="-D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS"
           flutter build windows --release 2>&1 | tee -a "$GITHUB_WORKSPACE/logs/windows.log"
           cp -r build/windows/x64/runner/Release/. "$GITHUB_WORKSPACE/out/"
 
